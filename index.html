@@ -265,6 +265,21 @@
         const loadingContainer = document.querySelector('.loading-container');
         const loadingBar = document.querySelector('.loading-bar');
 
+
+        // Initialize TTS immediately on page load
+window.addEventListener('DOMContentLoaded', () => {
+            // Preload text chunks and utterances
+            const text = document.querySelector('.summary').textContent;
+            speechQueue = splitIntoChunks(text).map(chunk => {
+                const utterance = new SpeechSynthesisUtterance(chunk);
+                applyVoiceModulation(utterance, chunk);
+                return utterance;
+            });
+
+            // Start preloading progress
+            // showLoadingProgress();
+        });
+
         function updateVolume(value) {
             backgroundMusic.volume = value;
         }
