@@ -285,6 +285,11 @@ window.addEventListener('DOMContentLoaded', () => {
             // showLoadingProgress();
         });
 
+        speech.onstart = () => {
+    completeLoading(); // Complete the loading bar when TTS starts
+    backgroundMusic.play();
+};
+
         function updateVolume(value) {
             backgroundMusic.volume = value;
         }
