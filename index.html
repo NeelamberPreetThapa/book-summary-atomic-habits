@@ -268,6 +268,11 @@
 
         // Initialize TTS immediately on page load
 window.addEventListener('DOMContentLoaded', () => {
+
+     // Warm up the TTS engine
+    const warmUpUtterance = new SpeechSynthesisUtterance("");
+    window.speechSynthesis.speak(warmUpUtterance);
+    window.speechSynthesis.cancel(); // Stop it immediately
             // Preload text chunks and utterances
             const text = document.querySelector('.summary').textContent;
             speechQueue = splitIntoChunks(text).map(chunk => {
