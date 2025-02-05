@@ -285,10 +285,7 @@ window.addEventListener('DOMContentLoaded', () => {
             // showLoadingProgress();
         });
 
-        speech.onstart = () => {
-    completeLoading(); // Complete the loading bar when TTS starts
-    backgroundMusic.play();
-};
+  
 
         function updateVolume(value) {
             backgroundMusic.volume = value;
@@ -340,13 +337,16 @@ window.addEventListener('DOMContentLoaded', () => {
         }
 
         function speakChunk() {
-            if (speechQueue.length === 0 || !isPlaying) {
-                isPlaying = false;
-                return;
-            }
-
+    if (speechQueue.length === 0 || !isPlaying) {
+        isPlaying = false;
+        backgroundMusic.pause();
+        backgroundMusic.currentTime = 0;
+        completeLoadingBar(); // Ensure loading bar is hidden
+        return;
+    }
             const chunk = speechQueue.shift();
-            speech = new SpeechSynthesisUtterance(chunk);
+    speech = new SpeechSynthesisUtterance(chunk);
+    applyVoiceModulation(speech, chunk);
             // speech.voice = getPreferredVoice();
             speech.rate = 0.9;  // Slightly slower for better emphasis
             speech.pitch = 1.1;
@@ -361,11 +361,13 @@ window.addEventListener('DOMContentLoaded', () => {
                 speech.pitch = 0.9;
             }
 
-            speech.onend = () => {
-                if (isPlaying) {
-                    speakChunk();
-                }
-            };
+             speech.onend = () => {
+        if (isPlaying) {
+            speakChunk(); // Move to the next chunk
+        } else {
+            completeLoadingBar(); // Ensure loading bar is hidden
+        }
+    };
 
             window.speechSynthesis.speak(speech);
         }
@@ -424,6 +426,21 @@ window.addEventListener('DOMContentLoaded', () => {
                 window.speechSynthesis.getVoices();
             };
         }
+
+          // Complete loading bar and start music when TTS starts
+    speech.onstart = () => {
+        completeLoadingBar(); // Complete the loading bar
+        backgroundMusic.play().catch(error => {
+            console.log("Audio playback failed:", error);
+        });
+    };
+   speech.onerror = () => {
+        completeLoadingBar(); // Ensure loading bar is hidden on error
+        stop(); // Stop everything if there's an error
+    };
+
+    window.speechSynthesis.speak(speech);
+}
     </script>
 </body>
 </html>
