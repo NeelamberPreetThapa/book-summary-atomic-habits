@@ -67,7 +67,7 @@
             height: 100%;
             background: linear-gradient(to right, var(--primary-color), var(--accent-color));
             width: 0%;
-            transition: width 0.8s ease-in-out;
+            transition: width 1.9s ease-in-out;
         }
         
         h1 {
@@ -256,166 +256,187 @@
     </div>
 
     <script>
-       let speech = null;
-let speechQueue = [];
-let isPlaying = false;
-let backgroundMusic = new Audio('emotional-piano-music-256262.mp3');
-backgroundMusic.loop = true;
-backgroundMusic.volume = 0.2;
-const loadingContainer = document.querySelector('.loading-container');
-const loadingBar = document.querySelector('.loading-bar');
-let loadingInterval;
+        let speech = null;
+        let speechQueue = [];
+        let isPlaying = false;
+        let backgroundMusic = new Audio('emotional-piano-music-256262.mp3');
+        backgroundMusic.loop = true;
+        backgroundMusic.volume = 0.2;
+        const loadingContainer = document.querySelector('.loading-container');
+        const loadingBar = document.querySelector('.loading-bar');
 
-// Preload TTS and warm up the engine on page load
+
+    
+
 window.addEventListener('DOMContentLoaded', () => {
     // Warm up the TTS engine
-    const warmUpUtterance = new SpeechSynthesisUtterance("");
+    const warmUpUtterance = new SpeechSynthesisUtterance(" .. ");
     window.speechSynthesis.speak(warmUpUtterance);
     window.speechSynthesis.cancel(); // Stop it immediately
 
-    // Preload text chunks and utterances
-    const text = document.querySelector('.summary').textContent;
+    // Preload voices
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+        speechSynthesis.onvoiceschanged = preloadVoices;
+    }
+
+    // Cache summary text
+    const summaryText = document.querySelector('.summary').textContent;
+
+    // Preload chunks lazily (offload to idle time if supported)
+    if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => preloadChunks(summaryText));
+    } else {
+        preloadChunks(summaryText);
+    }
+});
+
+// Function to preload voices
+function preloadVoices() {
+    const voices = window.speechSynthesis.getVoices();
+    console.log("Voices preloaded:", voices.length);
+}
+
+// Function to preload text chunks
+function preloadChunks(text) {
     speechQueue = splitIntoChunks(text).map(chunk => {
         const utterance = new SpeechSynthesisUtterance(chunk);
         applyVoiceModulation(utterance, chunk);
         return utterance;
     });
-});
+}
 
-// Show loading bar when "Play Summary" is clicked
-function showLoadingBar() {
-    loadingContainer.style.display = 'block';
-    loadingBar.style.width = '0%';
-    loadingBar.offsetHeight; // Force reflow to ensure the transition works
 
-    // Animate the loading bar smoothly
-    let width = 0;
-    loadingInterval = setInterval(() => {
-        width += 1; // Increase width by 1% every 20ms
-        loadingBar.style.width = width + '%';
-
-        // Stop the animation when it reaches 90% (or any desired value)
-        if (width >= 90) {
-            clearInterval(loadingInterval);
+        function updateVolume(value) {
+            backgroundMusic.volume = value;
         }
-    }, 20);
-}
-
-// Complete and hide the loading bar
-function completeLoadingBar() {
-    clearInterval(loadingInterval);
-    loadingBar.style.width = '100%';
-    setTimeout(() => {
-        loadingContainer.style.display = 'none';
-        loadingBar.style.width = '0%';
-    }, 500); // Adjust the delay as needed
-}
-
-// Start TTS and music when "Play Summary" is clicked
-function speak() {
-    if (!isPlaying) {
-        isPlaying = true;
-        showLoadingBar(); // Start the loading bar
-        speakChunk(); // Start TTS
-    }
-}
-
-// Speak a chunk of text
-function speakChunk() {
-    if (speechQueue.length === 0 || !isPlaying) {
-        isPlaying = false;
-        backgroundMusic.pause();
-        backgroundMusic.currentTime = 0;
-        completeLoadingBar(); // Ensure loading bar is hidden
-        return;
-    }
-
-    const chunk = speechQueue.shift();
-    speech = new SpeechSynthesisUtterance(chunk);
-    applyVoiceModulation(speech, chunk);
-
-    // Complete loading bar and start music when TTS starts
-    speech.onstart = () => {
-        completeLoadingBar(); // Complete the loading bar
-        backgroundMusic.play().catch(error => {
-            console.log("Audio playback failed:", error);
-        });
-    };
-
-    speech.onend = () => {
-        if (isPlaying) {
-            speakChunk(); // Move to the next chunk
-        } else {
-            completeLoadingBar(); // Ensure loading bar is hidden
+    
+        function showLoadingBar() {
+            loadingContainer.style.display = 'block';
+            loadingBar.style.width = '0%';
+            loadingBar.offsetHeight;
+            loadingBar.style.width = '100%';
         }
-    };
 
-    speech.onerror = () => {
-        completeLoadingBar(); // Ensure loading bar is hidden on error
-        stop(); // Stop everything if there's an error
-    };
+        function hideLoadingBar() {
+            loadingContainer.style.display = 'none';
+            loadingBar.style.width = '0%';
+        }
+    
+        function getPreferredVoice() {
+            const preferredVoices = [
+                "Google UK English Female",
+                "Google UK English Male",
+                "Google US English",
+                "Microsoft David Desktop - English (United States)",
+                "Google Deutsch",
+            ];
+    
+            const voices = window.speechSynthesis.getVoices();
+            return preferredVoices.reduce((found, preferred) => 
+                found || voices.find(v => v.name.includes(preferred) || v.lang.includes(preferred)), null
+            ) || (voices.length > 0 ? voices[0] : null);
+        }
 
-    window.speechSynthesis.speak(speech);
-}
+        function splitIntoChunks(text) {
+            const chunks = [];
+            const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
+            let currentChunk = '';
 
-// Stop TTS and music
-function stop() {
-    isPlaying = false;
-    speechQueue = [];
-    window.speechSynthesis.cancel();
-    backgroundMusic.pause();
-    backgroundMusic.currentTime = 0;
-    completeLoadingBar(); // Ensure loading bar is hidden
-}
+            sentences.forEach(sentence => {
+                if (currentChunk.length + sentence.length < 180) {
+                    currentChunk += sentence;
+                } else {
+                    if (currentChunk) chunks.push(currentChunk.trim());
+                    currentChunk = sentence;
+                }
+            });
 
-// Apply voice modulation to the utterance
-function applyVoiceModulation(utterance, chunk) {
-    if (chunk.includes('!')) {
-        utterance.pitch = 1.3;
-        utterance.rate = 0.95;
-    }
-    if (chunk.includes('...')) {
-        utterance.rate = 0.8;
-        utterance.pitch = 0.9;
-    }
-    if (chunk.includes('-') || chunk.includes('—')) {
-        utterance.rate = 0.85;
-        utterance.pitch = 1.2;
-    }
-    if (/[A-Z]{2,}/.test(chunk)) {
-        utterance.pitch = 1.4;
-        utterance.rate = 0.9;
-    }
-    if (chunk.includes('"')) {
-        utterance.pitch = 1.2;
-    }
-    if (chunk.includes('?')) {
-        utterance.pitch = 1.5;
-    }
-    if (/\d+/.test(chunk)) {
-        utterance.rate = 0.8;
-        utterance.pitch = 1.3;
-    }
-}
-
-// Split text into chunks
-function splitIntoChunks(text) {
-    const chunks = [];
-    const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
-    let currentChunk = '';
-
-    sentences.forEach(sentence => {
-        if (currentChunk.length + sentence.length < 200) {
-            currentChunk += sentence;
-        } else {
             if (currentChunk) chunks.push(currentChunk.trim());
-            currentChunk = sentence;
+            return chunks;
         }
-    });
 
-    if (currentChunk) chunks.push(currentChunk.trim());
-    return chunks;
-}
+        function speakChunk() {
+            if (speechQueue.length === 0 || !isPlaying) {
+                isPlaying = false;
+                
+                backgroundMusic.pause();
+                backgroundMusic.currentTime = 0;
+                return;
+            }
+
+            const chunk = speechQueue.shift();
+            speech = new SpeechSynthesisUtterance(chunk);
+            // speech.voice = getPreferredVoice();
+            speech.rate = 0.9;  // Slightly slower for better emphasis
+            speech.pitch = 1.1;
+            speech.volume = 1;
+
+            speech.onend = () => {
+                if (isPlaying) {
+                    speakChunk();
+                }
+            };
+
+            window.speechSynthesis.speak(speech);
+        }
+    
+        function speak() {
+            stop();
+            showLoadingBar();
+            
+            backgroundMusic.play().catch(error => {
+                console.log("Audio playback failed:", error);
+            });
+    
+            const text = document.querySelector('.summary').textContent;
+            speechQueue = splitIntoChunks(text);
+            isPlaying = true;
+
+            setTimeout(() => {
+                hideLoadingBar();
+                speakChunk();
+            }, 2000);
+
+            // Add periodic reset to prevent Chrome bug
+            setInterval(() => {
+                if (isPlaying && !window.speechSynthesis.speaking) {
+                    speakChunk();
+                }
+            }, 2599);
+        }
+    
+        function pause() {
+            isPlaying = false;
+            window.speechSynthesis.pause();
+            backgroundMusic.pause();
+        }
+    
+        function resume() {
+            isPlaying = true;
+            window.speechSynthesis.resume();
+            backgroundMusic.play();
+            if (!window.speechSynthesis.speaking) {
+                speakChunk();
+            }
+        }
+    
+        function stop() {
+            isPlaying = false;
+            speechQueue = [];
+            window.speechSynthesis.cancel();
+            backgroundMusic.pause();
+            backgroundMusic.currentTime = 0;
+            hideLoadingBar();
+        }
+        
+    
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = () => {
+                window.speechSynthesis.getVoices();
+            };
+        }
+
+        
     </script>
 </body>
 </html>
